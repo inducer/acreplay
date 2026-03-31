@@ -260,7 +260,7 @@ def plot_racing_line(
     driver = car_meta.driver_name or f"Car {car_index}"
     car = car_meta.car_model or "unknown"
     track = replay.header.track_name or "unknown track"
-    n_frames = replay.header.num_frames
+    n_frames = len(replay.frames)
     dt_s = replay.header.recording_interval / 1000.0
     duration = n_frames * dt_s
     ax.set_title(
