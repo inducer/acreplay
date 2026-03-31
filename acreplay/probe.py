@@ -3,7 +3,7 @@ ac_format_probe.py
 ------------------
 Diagnostic utility: reads the raw bytes of an .acreplay file and prints
 structured hex/field dumps to help verify that the struct layouts in
-ac_replay_parser.py are correctly calibrated against a real file.
+acreplay/replay.py are correctly calibrated against a real file.
 
 Since the .acreplay format is undocumented, this tool exists to quickly
 catch misalignment:  if a field value looks physically impossible (e.g.
@@ -11,7 +11,7 @@ recording_interval = 2.3e+25) the struct layout needs adjustment.
 
 Usage
 ~~~~~
-    python ac_format_probe.py replay.acreplay
+    ac-replay-probe replay.acreplay
 
 What it prints
 ~~~~~~~~~~~~~~
@@ -335,12 +335,16 @@ def probe(path: str | Path) -> None:
     wings_between = car_num_wings * 4
     print(f"\n  Offset after first frame: {offset} / {len(raw)} bytes")
     # Remaining frames start after the first CarFrameData; each subsequent
-    # frame is: wings_data + FrameHeader + CarFrameData
+    # frame is: wings_data + FrameHeader + CarFrameData.
+    # The per-car footer (wing data after last frame + 4-byte CSP count) must
+    # be subtracted so it does not inflate the estimated remaining-frame count.
+    min_footer_bytes = wings_between + 4  # wings after last frame + count u32
     remaining = len(raw) - offset
+    effective_remaining = remaining - min_footer_bytes
     if car_num_frames > 1:
         per_remaining_frame = wings_between + fh_size + cfd_size
         remaining_frames_est = (
-            remaining / per_remaining_frame if per_remaining_frame else 0
+            effective_remaining / per_remaining_frame if per_remaining_frame else 0
         )
         expected_remaining = car_num_frames - 1
     else:
