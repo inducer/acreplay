@@ -551,6 +551,8 @@ class Replay:
         # Use the minimum num_frames across all cars as the common length.
         n_frames = min((len(cf) for cf in car_frames_raw), default=0)
 
+        # Ensure the header's frame count matches the actual parsed frames.
+        header.num_frames = n_frames
         frame_headers = car_frame_headers[0][:n_frames] if car_frame_headers else []
         frames: list[list[CarFrameData]] = [
             [car_frames_raw[car_i][frame_i] for car_i in range(len(cars))]
