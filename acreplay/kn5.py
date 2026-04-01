@@ -495,7 +495,7 @@ def _read_node(
     (node_type,) = struct.unpack("<i", _read_exactly(fp, 4))
     name = _read_lstring(fp)
     (children_count,) = struct.unpack("<i", _read_exactly(fp, 4))
-    fp.read(1)   # active byte
+    _read_exactly(fp, 1)   # active byte
 
     if node_type == 1:
         # Dummy node: read 4×4 row-major transform matrix
