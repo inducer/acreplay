@@ -513,7 +513,7 @@ def _read_node(
             (bone_count,) = struct.unpack("<i", _read_exactly(fp, 4))
             for _ in range(bone_count):
                 _read_lstring(fp)
-                fp.read(64)   # bone inverse-bind matrix
+                _read_exactly(fp, 64)   # bone inverse-bind matrix
 
         (vertex_count,) = struct.unpack("<i", _read_exactly(fp, 4))
         stride = _ANIMATED_VERTEX_STRIDE if node_type == 3 else _STATIC_VERTEX_STRIDE
