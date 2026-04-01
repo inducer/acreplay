@@ -247,7 +247,7 @@ def plot_racing_line(
                 return 0.0
             area = 0.0
             # Shoelace formula over x/z coordinates
-            for (x1, z1), (x2, z2) in zip(r, r[1:] + r[:1]):
+            for (x1, z1), (x2, z2) in zip(r, r[1:] + r[:1], strict=False):
                 area += x1 * z2 - x2 * z1
             return 0.5 * area
 
