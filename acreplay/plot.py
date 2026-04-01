@@ -239,11 +239,31 @@ def plot_racing_line(
                 labeled = True
             else:
                 ax.plot(xs, zs, **boundary_kw)
-        # Fill the exterior ring (first ring) as track surface tint
-        xs = [p[0] for p in kn5_rings[0]]
-        zs = [p[1] for p in kn5_rings[0]]
-        ax.fill(xs, zs, color="#252540", alpha=0.6, zorder=0)
 
+        # Fill the main exterior ring (largest-area ring) as track surface tint
+        def _ring_area_2d(r):
+            """Return signed area of a closed 2D ring given as [(x, z), ...]."""
+            if len(r) < 3:
+                return 0.0
+            area = 0.0
+            # Shoelace formula over x/z coordinates
+            for (x1, z1), (x2, z2) in zip(r, r[1:] + r[:1]):
+                area += x1 * z2 - x2 * z1
+            return 0.5 * area
+
+        # Choose the ring with the largest absolute area as the exterior.
+        exterior_ring = None
+        max_abs_area = 0.0
+        for ring in kn5_rings:
+            a = abs(_ring_area_2d(ring))
+            if a > max_abs_area:
+                max_abs_area = a
+                exterior_ring = ring
+
+        if exterior_ring is not None and max_abs_area > 0.0:
+            xs = [p[0] for p in exterior_ring]
+            zs = [p[1] for p in exterior_ring]
+            ax.fill(xs, zs, color="#252540", alpha=0.6, zorder=0)
     # AI reference line
     if ai_centre:
         ax_ref, az_ref = _xz(ai_centre)
