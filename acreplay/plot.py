@@ -37,6 +37,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .kn5 import Kn5Model, find_patch_boundary, find_road_triangles, find_track_kn5
 from .replay import Replay, Vec3
 from .track import (
     AiSpline,
@@ -98,6 +99,7 @@ def plot_racing_line(
     *,
     track_data_dir: str | Path | None = None,
     ai_dir: str | Path | None = None,
+    kn5_path: str | Path | None = None,
     car_index: int = 0,
     colour_by: Literal["speed", "brake", "throttle"] = "speed",
     output_path: str | Path | None = None,
@@ -114,6 +116,12 @@ def plot_racing_line(
                       (needed for side_l.csv / side_r.csv)
     ai_dir          : path to the track's ``ai/`` folder
                       (needed for fast_lane.ai)
+    kn5_path        : path to the track's ``.kn5`` model file.
+                      When CSV and AI-spline boundaries are unavailable,
+                      the road surface is identified by finding the topmost
+                      triangle at the car's starting position, collecting all
+                      triangles with that material, and computing the boundary
+                      polygon with *shapely*.
     car_index       : which car to plot (0-based)
     colour_by       : metric to encode as line colour:
                       "speed" | "brake" | "throttle"
@@ -158,6 +166,7 @@ def plot_racing_line(
     left_pts: list[Point3] | None = None
     right_pts: list[Point3] | None = None
     ai_centre: list[Point3] | None = None
+    kn5_rings: list[list[tuple[float, float]]] | None = None
 
     if track_data_dir is not None:
         track_data_dir = Path(track_data_dir)
@@ -178,6 +187,16 @@ def plot_racing_line(
                 left_pts = spline.left_boundary
             if right_pts is None and spline.right_boundary:
                 right_pts = spline.right_boundary
+
+    # Fall back to KN5 boundary extraction when neither CSV nor AI spline
+    # boundaries are available and the car has at least one recorded position.
+    if kn5_path is not None and not (left_pts or right_pts) and len(positions) > 0:
+        kn5_model = Kn5Model.from_file(kn5_path)
+        start_pos = positions[0]
+        result = find_road_triangles(kn5_model, (start_pos.x, start_pos.z))
+        if result is not None:
+            _mat_id, road_tris = result
+            kn5_rings = find_patch_boundary(road_tris)
 
     # -- Build figure -------------------------------------------------------
     fig, ax = plt.subplots(figsize=figsize)
@@ -208,6 +227,22 @@ def plot_racing_line(
         poly_x = np.concatenate([lx, rx[::-1]])
         poly_z = np.concatenate([lz, rz[::-1]])
         ax.fill(poly_x, poly_z, color="#252540", alpha=0.6, zorder=0)
+
+    # KN5-derived boundary rings (used when CSV / AI-spline boundaries are absent)
+    if kn5_rings:
+        labeled = False
+        for ring in kn5_rings:
+            xs = [p[0] for p in ring]
+            zs = [p[1] for p in ring]
+            if not labeled:
+                ax.plot(xs, zs, **boundary_kw, label="Track boundary (KN5)")
+                labeled = True
+            else:
+                ax.plot(xs, zs, **boundary_kw)
+        # Fill the exterior ring (first ring) as track surface tint
+        xs = [p[0] for p in kn5_rings[0]]
+        zs = [p[1] for p in kn5_rings[0]]
+        ax.fill(xs, zs, color="#252540", alpha=0.6, zorder=0)
 
     # AI reference line
     if ai_centre:
@@ -313,6 +348,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to the track's ai/ directory (for fast_lane.ai)",
     )
     p.add_argument(
+        "--kn5",
+        metavar="FILE",
+        help=(
+            "Path to the track's .kn5 model file.  Used as a fallback "
+            "boundary source when CSV and AI-spline data are absent."
+        ),
+    )
+    p.add_argument(
         "--ac-install",
         metavar="DIR",
         help=(
@@ -356,6 +399,7 @@ def main() -> None:
 
     track_data_dir: Path | None = None
     ai_dir: Path | None = None
+    kn5_path: Path | None = None
 
     replay = Replay.from_file(args.replay)
 
@@ -372,10 +416,17 @@ def main() -> None:
         with contextlib.suppress(FileNotFoundError):
             ai_dir = find_ai_dir(args.ac_install, args.track_name, args.layout)
 
+    if args.kn5:
+        kn5_path = Path(args.kn5)
+    elif args.ac_install and args.track_name:
+        with contextlib.suppress(FileNotFoundError):
+            kn5_path = find_track_kn5(args.ac_install, args.track_name)
+
     plot_racing_line(
         replay=replay,
         track_data_dir=track_data_dir,
         ai_dir=ai_dir,
+        kn5_path=kn5_path,
         car_index=args.car,
         colour_by=args.colour_by,
         output_path=args.output,
