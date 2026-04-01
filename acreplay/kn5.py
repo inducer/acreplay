@@ -536,7 +536,7 @@ def _read_node(
         indices = np.frombuffer(raw_idx, dtype=np.uint16).astype(np.uint32)
 
         (material_id,) = struct.unpack("<i", _read_exactly(fp, 4))
-        fp.read(29 if node_type == 2 else 12)   # trailing padding
+        _read_exactly(fp, 29 if node_type == 2 else 12)   # trailing padding
 
         meshes.append(
             Kn5Mesh(
